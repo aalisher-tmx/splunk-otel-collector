@@ -7,6 +7,7 @@ stages:
   - sign
   - package
   - cve-scan
+  - sign-deb-rpm
   - release
   - sign-metadata
   - upload-signature
@@ -67,6 +68,7 @@ compile:
   only:
     variables:
       - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_BRANCH == "deb-signing"
       - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
   except:
     - schedules
@@ -89,6 +91,7 @@ libsplunk:
   only:
     variables:
       - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_BRANCH == "deb-signing"
       - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
   except:
     - schedules
@@ -107,6 +110,7 @@ libsplunk:
   only:
     variables:
       - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_BRANCH == "deb-signing"
       - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
   except:
     - schedules
@@ -240,6 +244,7 @@ build-linux-image:
   only:
     variables:
       - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_BRANCH == "deb-signing"
       - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
   except:
     - schedules
@@ -397,6 +402,64 @@ build-push-windows-image:
   artifacts:
     paths:
       - dist/windows_digest.txt
+
+sign-debs:
+  extends: .submit-request
+  stage: sign-deb-rpm
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_BRANCH == "deb-signing"
+      - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+  needs:
+    - build-deb
+    - instrumentation-deb
+  dependencies:
+    - build-deb
+    - instrumentation-deb
+  variables:
+    ARTIFACT: dist/packages.tar.gz
+    SIGN_TYPE: DEB
+    OPTIONS: archive
+    DOWNLOAD_DIR: dist/signed
+  before_script:
+    - set -ex
+    - cd dist && tar -czvf packages.tar.gz *.deb && cd -
+  # after_script:
+  #   - tar -xzvf dist/signed/packages.tar.gz -C dist/signed/
+  artifacts:
+    paths:
+      - dist/signed
+      - dist/packages.tar.gz
+
+sign-rpms:
+  extends: .submit-request
+  stage: sign-deb-rpm
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_BRANCH == "deb-signing"
+      - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+  needs:
+    - build-rpm
+    - instrumentation-rpm
+  dependencies:
+    - build-rpm
+    - instrumentation-rpm
+  variables:
+    ARTIFACT: dist/packages.tar.gz
+    SIGN_TYPE: RPM
+    OPTIONS: archive
+    DOWNLOAD_DIR: dist/signed
+  script:
+    - set -ex
+    - cd dist && tar -czvf packages.tar.gz *.rpm && cd -
+  # after_script:
+  #   - tar -xzvf dist/signed/packages.tar.gz -C dist/signed/
+  artifacts:
+    paths:
+      - dist/signed
+      - dist/packages.tar.gz
 
 release-debs:
   extends:
